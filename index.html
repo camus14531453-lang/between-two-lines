@@ -102,6 +102,7 @@ footer b{color:var(--ink);font-weight:600}
   <video class="src" id="v-cow" src="media/cow.mp4" muted playsinline loop preload="metadata"></video>
   <video class="src" id="v-bars" src="media/bars.mp4" muted playsinline loop preload="metadata"></video>
   <video class="src" id="v-lamb" src="media/lamb.mp4" muted playsinline loop preload="metadata"></video>
+  <video class="src" id="v-chickens" src="media/chickens.mp4" muted playsinline loop preload="metadata"></video>
   <video class="src" id="v-train" src="media/train.mp4" muted playsinline loop preload="metadata"></video>
   <video class="src" id="v-garden" src="media/garden.mp4" muted playsinline loop preload="metadata"></video>
   <video class="src" id="v-horse" src="media/horse.mp4" muted playsinline loop preload="metadata"></video>
@@ -176,10 +177,6 @@ footer b{color:var(--ink);font-weight:600}
 <section class="scene" data-src="v-lamb" data-mode="4" data-stop="goats" data-env="lamb">
   <div class="tag" style="left:14vw;top:24vh">just a head, behind the stone.</div>
   <div class="piece" style="left:16vw;top:84vh;width:20vw;transform:rotate(-4deg)"><img src="media/s_lamb.jpg" alt=""></div>
-  <div class="piece" style="left:60vw;top:72vh;width:17vw;transform:rotate(5deg)"><div class="paper"><img src="media/s_guinea.jpg" alt="Guinea pigs in hay"></div><span class="tape"></span></div>
-  <div class="tag paper" style="left:58vw;top:118vh;transform:rotate(-2deg)">nearby: guinea pigs asleep in the hay.</div>
-  <div class="piece" style="left:36vw;top:8vh;width:15vw;transform:rotate(-3deg)"><div class="paper"><video src="media/chickens.mp4" muted playsinline loop autoplay></video></div><span class="tape"></span></div>
-  <div class="tag" style="left:34vw;top:52vh;transform:rotate(2deg)">chickens. first through the wire — then right up against it.</div>
   <div class="title"><p><span class="no">07 · Goats</span>A keeper called its name. It called back.</p></div>
 </section>
 <section class="scene" data-src="v-train" data-mode="5" data-stop="goats" data-env="train" id="train">
@@ -190,16 +187,23 @@ footer b{color:var(--ink);font-weight:600}
   <div class="title"><p><span class="no">08 · Rail</span><span class="q">Still as sculptures.</span><span class="l">Then the train. The farm doesn’t stop it. It just stands in it.</span></p></div>
 </section>
 
+<section class="scene short" data-src="v-chickens" data-mode="7" data-stop="small" data-env="">
+  <div class="piece" style="left:60vw;top:18vh;width:18vw;transform:rotate(4deg)"><div class="paper"><img src="media/s_guinea.jpg" alt="Guinea pigs asleep in the hay"></div><span class="tape"></span></div>
+  <div class="tag paper" style="left:58vw;top:60vh;transform:rotate(-2deg)">guinea pigs, asleep in the hay.</div>
+  <div class="tag" style="left:16vw;top:20vh">first through the wire — then right up against it.</div>
+  <div class="title"><p><span class="no">09 · Chickens</span>Chickens, and the guinea pigs next door.</p></div>
+</section>
+
 <section class="scene" data-src="v-garden" data-mode="6" data-stop="gardens" data-env="garden">
   <div class="tag yellow" style="left:60vw;top:18vh">move the mouse to look around.</div>
   <div class="tag paper" style="left:58vw;top:60vh;transform:rotate(2deg)">vegetables, fruit. then a patch of wasteland.</div>
   <div class="tag" style="left:20vw;top:30vh;transform:rotate(-3deg)">grown to eat? for whom?</div>
   <div class="tag" style="left:62vw;top:104vh">I didn’t find out. I turned back.</div>
-  <div class="title"><p><span class="no">09 · Further in</span>Map not fully unlocked. Further exploration needed.</p></div>
+  <div class="title"><p><span class="no">10 · Further in</span>Map not fully unlocked. Further exploration needed.</p></div>
 </section>
 <section class="scene short" data-src="i-feather" data-mode="8" data-stop="exit" data-env="">
   <div class="piece" style="left:58vw;top:18vh;width:22vw;transform:rotate(-4deg)"><div class="paper"><img src="media/feather1.jpg" alt="A feather on double yellow lines"></div><span class="tape"></span></div>
-  <div class="title"><p><span class="no">10 · Gate</span>Outside the gate, a feather lying between the double yellow lines on the road. Two lines again. The only thing I took home.</p></div>
+  <div class="title"><p><span class="no">11 · Gate</span>Outside the gate, a feather lying between the double yellow lines on the road. Two lines again. The only thing I took home.</p></div>
 </section>
 
 </main>
@@ -222,7 +226,7 @@ footer b{color:var(--ink);font-weight:600}
 
 <script src="media/env.js"></script>
 <script>
-const STOPS={entrance:[8,59,'entrance'],pigs:[31,56],stables:[40,52,'stables'],sheep:[38,66,'sheep'],cow:[44,66,'cow'],goats:[59,52,'goats'],gardens:[63,45,'unexplored'],exit:[8,59,'gate']};STOPS.pigs[2]='pigs';
+const STOPS={entrance:[8,59,'entrance'],pigs:[31,56],stables:[40,52,'stables'],sheep:[38,66,'sheep'],cow:[44,66,'cow'],goats:[59,52,'goats'],small:[54,50,'chickens · guinea pigs'],gardens:[63,45,'unexplored'],exit:[8,59,'gate']};STOPS.pigs[2]='pigs';
 const dot=document.getElementById('dot'),where=document.getElementById('where');
 function goStop(k){const s=STOPS[k];if(!s)return;dot.style.left=s[0]+'%';dot.style.top=s[1]+'%';where.textContent=s[2];}
 goStop('entrance');
