@@ -1,0 +1,410 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Between Two Lines</title>
+<style>
+:root{
+  --bg:#0e0d0b; --ink:#f1ebdd; --dim:#9a9283; --paper:#efe7d4; --chalk:#f4f1e8; --accent:#ffcc3d;
+  --serif:"Iowan Old Style","Palatino Linotype",Palatino,Georgia,serif;
+  --sans:"Helvetica Neue",Helvetica,Arial,sans-serif;
+  --hand:"Chalkboard SE","Marker Felt","Comic Sans MS",cursive;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--ink);font-family:var(--sans);overflow-x:hidden}
+img,video{display:block}
+
+/* WebGL stage */
+#gl,#fallback{position:fixed;inset:0;width:100vw;height:100vh;z-index:0}
+#fallback{display:none;object-fit:cover}
+body.nogl #gl{display:none}body.nogl #fallback{display:block}
+.src{position:absolute;width:2px;height:2px;opacity:0;pointer-events:none;left:-10px;top:0}
+
+/* two rails */
+.rails{position:fixed;inset:0;pointer-events:none;z-index:2}
+.rails i{position:absolute;top:0;bottom:0;width:2px;background:var(--accent);opacity:.55;mix-blend-mode:screen}
+.rails i:first-child{left:7vw}.rails i:last-child{right:7vw}
+
+main{position:relative;z-index:3}
+.scene{position:relative;height:230vh}
+.scene.short{height:170vh}
+.title{position:sticky;top:0;height:100vh;display:flex;align-items:flex-end;padding:0 11vw 11vh;pointer-events:none}
+.title{opacity:0;transition:opacity .7s}.scene.cur .title{opacity:1}
+.title p{font:italic 400 clamp(26px,3.4vw,54px)/1.15 var(--serif);max-width:15em;text-shadow:0 2px 24px rgba(0,0,0,.75)}
+.title .no{font:700 11px/1 var(--sans);letter-spacing:.25em;text-transform:uppercase;color:var(--accent);display:block;margin-bottom:14px;font-style:normal;text-shadow:none}
+
+/* collage pieces */
+.piece{position:absolute;filter:drop-shadow(0 10px 18px rgba(0,0,0,.55));transition:transform .6s cubic-bezier(.2,.8,.2,1)}
+.piece img,.piece video{width:100%;height:auto;background:#222}
+.piece .paper{background:var(--paper);padding:10px 10px 30px}
+.piece:hover{transform:rotate(0deg) scale(1.04)!important;z-index:9}
+.tape{position:absolute;top:-12px;left:50%;width:90px;height:26px;margin-left:-45px;background:rgba(255,236,170,.55);transform:rotate(-4deg);z-index:2}
+.tag{position:absolute;font:400 clamp(16px,1.5vw,22px)/1.25 var(--hand);color:var(--chalk);background:#1d1f1c;padding:8px 14px 10px;border:2px solid #3b3d38;transform:rotate(-2deg);max-width:17em}
+.tag.paper{background:var(--paper);color:#1d1b17;border:0}
+.tag.yellow{background:var(--accent);color:#111;border:0}
+
+/* cover */
+#cover{height:120vh}
+#cover .inner{position:sticky;top:0;height:100vh;display:flex;flex-direction:column;justify-content:flex-end;padding:0 11vw 12vh;gap:22px}
+#cover h1{font:400 clamp(60px,11vw,170px)/.86 var(--serif);letter-spacing:-.025em;text-shadow:0 4px 40px rgba(0,0,0,.6)}
+#cover h1 em{display:block;color:var(--accent)}
+#cover .meta{font:600 11px/1.6 var(--sans);letter-spacing:.22em;text-transform:uppercase;color:var(--ink);opacity:.8}
+#enter{align-self:flex-start;background:var(--accent);border:0;color:#111;font:700 12px/1 var(--sans);letter-spacing:.2em;text-transform:uppercase;padding:18px 26px;cursor:pointer}
+body.on #enter{background:transparent;color:var(--ink);outline:1px solid var(--ink)}
+
+/* map */
+#map{position:fixed;right:calc(7vw + 18px);top:18px;width:220px;z-index:6;transform:rotate(-1.5deg);filter:drop-shadow(0 8px 16px rgba(0,0,0,.6))}
+#map .wrap{position:relative;border:6px solid var(--paper)}
+#map img{width:100%}
+#fog{position:absolute;left:64%;top:0;right:0;bottom:0;background:repeating-linear-gradient(45deg,rgba(20,22,24,.86) 0 6px,rgba(40,42,44,.86) 6px 12px);display:flex;align-items:center;justify-content:center;font:400 34px/1 var(--hand);color:var(--chalk)}
+#dot{position:absolute;width:16px;height:16px;margin:-8px 0 0 -8px;border-radius:50%;background:var(--accent);border:2px solid #111;transition:left 1.4s cubic-bezier(.6,0,.2,1),top 1.4s cubic-bezier(.6,0,.2,1)}
+#dot::after{content:"";position:absolute;inset:-8px;border-radius:50%;border:2px solid var(--accent);animation:ping 1.6s infinite}
+@keyframes ping{to{transform:scale(1.8);opacity:0}}
+#where{position:absolute;left:-8px;bottom:-14px;font:400 14px/1 var(--hand);background:#1d1f1c;color:var(--chalk);padding:6px 10px;transform:rotate(2deg)}
+
+/* level meter for sound */
+#meter{position:fixed;right:7vw;top:0;bottom:0;width:2px;z-index:2;pointer-events:none}
+#meter i{position:absolute;bottom:0;left:-3px;width:8px;background:var(--accent);height:0}
+
+#train .l{display:none}#train.loud .l{display:inline}#train.loud .q{display:none}
+.strip{position:absolute;display:flex;gap:6px;background:#111;padding:14px 8px;transform:rotate(-1.5deg);filter:drop-shadow(0 10px 18px rgba(0,0,0,.6));border-top:6px dashed #333;border-bottom:6px dashed #333}
+.strip img{width:13vw}
+.scene>.piece,.scene>.tag,.scene>.strip{opacity:0;transition:opacity .6s,transform .6s cubic-bezier(.2,.8,.2,1)}
+.scene.cur>.piece,.scene.cur>.tag,.scene.cur>.strip{opacity:1}
+footer{position:relative;z-index:3;padding:14vh 11vw 30vh;font:13px/1.9 var(--sans);color:var(--dim);background:linear-gradient(transparent,var(--bg) 30%)}
+footer b{color:var(--ink);font-weight:600}
+.about{display:grid;grid-template-columns:1.1fr 1fr;gap:6vw;align-items:center;margin-bottom:12vh}
+.about .no{font:700 11px/1 var(--sans);letter-spacing:.25em;text-transform:uppercase;color:var(--accent);margin-bottom:22px}
+.about p{font:400 17px/1.65 var(--sans);color:var(--ink);margin-bottom:16px;max-width:34em}
+.about p.q{font:italic 400 clamp(22px,2.2vw,32px)/1.3 var(--serif);margin-top:30px}
+.about-imgs{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px}
+.about-imgs img{width:100%;aspect-ratio:3/4;object-fit:cover;border:8px solid var(--paper);filter:drop-shadow(0 8px 14px rgba(0,0,0,.5))}
+.credits{border-top:1px solid #2a2824;padding-top:24px}
+@media (max-width:760px){.about{grid-template-columns:1fr}}
+
+@media (max-width:760px){
+  .piece{width:58vw!important}
+  #map{width:150px}
+}
+</style>
+</head>
+<body>
+<canvas id="gl"></canvas>
+<video id="fallback" muted playsinline loop></video>
+<div class="rails"><i></i><i></i></div>
+<div id="meter"><i></i></div>
+
+<!-- hidden sources for the WebGL stage -->
+<div id="sources">
+  <video class="src" id="v-pig" src="media/pig.mp4" muted playsinline loop preload="metadata"></video>
+  <video class="src" id="v-sheep" src="media/sheep.mp4" muted playsinline loop preload="metadata"></video>
+  <video class="src" id="v-cow" src="media/cow.mp4" muted playsinline loop preload="metadata"></video>
+  <video class="src" id="v-bars" src="media/bars.mp4" muted playsinline loop preload="metadata"></video>
+  <video class="src" id="v-lamb" src="media/lamb.mp4" muted playsinline loop preload="metadata"></video>
+  <video class="src" id="v-train" src="media/train.mp4" muted playsinline loop preload="metadata"></video>
+  <video class="src" id="v-garden" src="media/garden.mp4" muted playsinline loop preload="metadata"></video>
+  <video class="src" id="v-horse" src="media/horse.mp4" muted playsinline loop preload="metadata"></video>
+  <img class="src" id="i-feather" src="media/feather2.jpg" alt="">
+  <img class="src" id="i-entrance" src="media/entrance.jpg" alt="">
+</div>
+
+<div id="map" aria-hidden="true">
+  <div class="wrap"><img src="media/map.jpg" alt=""><div id="fog"><span>?</span></div><div id="dot"></div></div>
+  <div id="where">Entrance</div>
+</div>
+
+<main>
+
+<section id="cover" class="scene" data-src="i-entrance" data-mode="0" data-stop="entrance" data-env="">
+  <div class="inner">
+    <div class="meta">Kentish Town City Farm — Gospel Oak, London NW5<br>Walked 6 October 2026</div>
+    <h1>Between<em>Two Lines</em></h1>
+    <button id="enter">Enter · sound on</button>
+  </div>
+</section>
+
+<section class="scene" data-src="i-entrance" data-mode="0" data-stop="entrance" data-env="">
+  <div class="piece" style="left:58vw;top:14vh;width:22vw;transform:rotate(4deg)"><div class="paper"><img src="media/mosaic.jpg" alt="Gospel Oak station mosaic"></div><span class="tape"></span></div>
+  <div class="piece" style="left:12vw;top:40vh;width:30vw;transform:rotate(-3deg)"><div class="paper"><img src="media/archive.jpg" alt="The site in 1972"></div><span class="tape"></span></div>
+  <div class="tag paper" style="left:14vw;top:96vh">1972. A disused timber yard where two railway lines crossed. The first city farm in the UK.</div>
+  <div class="piece" style="left:52vw;top:78vh;width:26vw;transform:rotate(2deg)"><img src="media/street.jpg" alt="The street outside"></div>
+  <div class="title"><p><span class="no">01 · Arriving</span>Gospel Oak. Overground on one side, trains on the other. A farm in between.</p></div>
+</section>
+
+<section class="scene" data-src="v-pig" data-mode="1" data-stop="pigs" data-env="pig">
+  <div class="piece" style="left:60vw;top:20vh;width:18vw;transform:rotate(5deg)"><img src="media/s_pig2.jpg" alt=""></div>
+  <div class="tag" style="left:56vw;top:62vh">two pigs. eating — then lying down, grunting.</div>
+  <div class="tag paper" style="left:14vw;top:28vh;transform:rotate(3deg)">the pen felt small for two.</div>
+  <div class="piece" style="left:16vw;top:92vh;width:18vw;transform:rotate(-6deg)"><img src="media/s_pig1.jpg" alt=""></div>
+  <div class="title"><p><span class="no">02 · Pigs</span>The smell arrived before the animals did. The camera kept the pigs. My body kept the smell.</p></div>
+</section>
+
+<section class="scene" data-src="v-horse" data-mode="7" data-stop="stables" data-env="horse">
+  <div class="piece" style="left:60vw;top:14vh;width:20vw;transform:rotate(4deg)"><div class="paper"><img src="media/s_donkeys.jpg" alt="Two donkeys in their stable"></div><span class="tape"></span></div>
+  <div class="tag paper" style="left:60vw;top:58vh;transform:rotate(-2deg)">two donkeys, side by side in the straw.</div>
+  <div class="piece" style="left:64vw;top:96vh;width:15vw;transform:rotate(-5deg)"><img src="media/bars3.jpg" alt="Close-up of a donkey's eye through the bars"></div>
+  <div class="tag" style="left:60vw;top:140vh">a donkey, close enough to see its eyelashes.</div>
+  <div class="tag" style="left:14vw;top:22vh">a keeper saddling Teddy, the horse.</div>
+  <div class="title"><p><span class="no">03 · Stables</span>Horses and donkeys. Someone was getting Teddy ready to ride.</p></div>
+</section>
+
+<section class="scene" data-src="v-bars" data-mode="3" data-stop="stables" data-env="bars">
+  <div class="piece" style="left:12vw;top:16vh;width:17vw;transform:rotate(-5deg)"><img src="media/s_donkey.jpg" alt="A donkey behind the bars"></div>
+  <div class="piece" style="left:66vw;top:22vh;width:15vw;transform:rotate(6deg)"><img src="media/s_donkey2.jpg" alt="Donkeys at the stable door"></div>
+  <div class="tag yellow" style="left:60vw;top:96vh">move the mouse — the bars open a little.</div>
+  <div class="title"><p><span class="no">04 · Through</span>Every animal I met, I met through bars.</p></div>
+</section>
+
+<section class="scene short" data-src="v-sheep" data-mode="7" data-stop="sheep" data-env="">
+  <div class="piece" style="left:58vw;top:16vh;width:24vw;transform:rotate(3deg)"><div class="paper"><img src="media/s_sheep.jpg" alt="Sheep in their pen"></div><span class="tape"></span></div>
+  <div class="tag paper" style="left:58vw;top:60vh;transform:rotate(-2deg)">black and white faces, heads in the hay.</div>
+  <div class="title"><p><span class="no">05 · Sheep</span>A pen full of sheep, packed in close.</p></div>
+</section>
+
+<section class="scene" data-src="v-cow" data-mode="2" data-stop="cow" data-env="cow">
+  <div class="piece" style="left:62vw;top:16vh;width:20vw;transform:rotate(-4deg)"><img src="media/s_cow2.jpg" alt=""><span class="tape"></span></div>
+  <div class="tag" style="left:14vw;top:24vh">flies everywhere.</div>
+  <div class="tag" style="left:20vw;top:34vh;transform:rotate(3deg)">its legs kept twitching.</div>
+  <div class="piece" style="left:30vw;top:120vh;width:13vw;transform:rotate(-6deg)"><img src="media/eye1.jpg" alt="Close-up of the cow's eye"></div>
+  <div class="piece" style="left:36vw;top:6vh;width:15vw;transform:rotate(3deg)"><img src="media/bars1.jpg" alt="The cow through the bars"></div>
+  <div class="title"><p><span class="no">06 · Cow</span>It never made a sound. Silent, and a little sad.</p></div>
+</section>
+
+
+
+<section class="scene" data-src="v-lamb" data-mode="4" data-stop="goats" data-env="lamb">
+  <div class="tag" style="left:14vw;top:24vh">just a head, behind the stone.</div>
+  <div class="piece" style="left:16vw;top:84vh;width:20vw;transform:rotate(-4deg)"><img src="media/s_lamb.jpg" alt=""></div>
+  <div class="piece" style="left:60vw;top:72vh;width:17vw;transform:rotate(5deg)"><div class="paper"><img src="media/s_guinea.jpg" alt="Guinea pigs in hay"></div><span class="tape"></span></div>
+  <div class="tag paper" style="left:58vw;top:118vh;transform:rotate(-2deg)">nearby: guinea pigs asleep in the hay.</div>
+  <div class="piece" style="left:36vw;top:8vh;width:15vw;transform:rotate(-3deg)"><div class="paper"><video src="media/chickens.mp4" muted playsinline loop autoplay></video></div><span class="tape"></span></div>
+  <div class="tag" style="left:34vw;top:52vh;transform:rotate(2deg)">chickens. first through the wire — then right up against it.</div>
+  <div class="title"><p><span class="no">07 · Goats</span>A keeper called its name. It called back.</p></div>
+</section>
+<section class="scene" data-src="v-train" data-mode="5" data-stop="goats" data-env="train" id="train">
+  <div class="tag paper" style="left:30vw;top:20vh;transform:rotate(2deg)">the others stood on the stones so still I thought they were sculptures.</div>
+  <div class="piece" style="left:14vw;top:14vh;width:13vw;transform:rotate(-5deg)"><img src="media/s_statue.jpg" alt=""><span class="tape"></span></div>
+  <div class="tag yellow" style="left:52vw;top:112vh">same pen, 17 seconds later. behind the fence:</div>
+  <div class="strip" style="left:52vw;top:122vh"><img src="media/train_k1.jpg" alt=""><img src="media/train_k2.jpg" alt=""><img src="media/train_k3.jpg" alt=""></div>
+  <div class="title"><p><span class="no">08 · Rail</span><span class="q">Still as sculptures.</span><span class="l">Then the train. The farm doesn’t stop it. It just stands in it.</span></p></div>
+</section>
+
+<section class="scene" data-src="v-garden" data-mode="6" data-stop="gardens" data-env="garden">
+  <div class="tag yellow" style="left:60vw;top:18vh">move the mouse to look around.</div>
+  <div class="tag paper" style="left:58vw;top:60vh;transform:rotate(2deg)">vegetables, fruit. then a patch of wasteland.</div>
+  <div class="tag" style="left:20vw;top:30vh;transform:rotate(-3deg)">grown to eat? for whom?</div>
+  <div class="tag" style="left:62vw;top:104vh">I didn’t find out. I turned back.</div>
+  <div class="title"><p><span class="no">09 · Further in</span>Map not fully unlocked. Further exploration needed.</p></div>
+</section>
+<section class="scene short" data-src="i-feather" data-mode="8" data-stop="exit" data-env="">
+  <div class="piece" style="left:58vw;top:18vh;width:22vw;transform:rotate(-4deg)"><div class="paper"><img src="media/feather1.jpg" alt="A feather on double yellow lines"></div><span class="tape"></span></div>
+  <div class="title"><p><span class="no">10 · Gate</span>Outside the gate, a feather lying between the double yellow lines on the road. Two lines again. The only thing I took home.</p></div>
+</section>
+
+</main>
+<footer>
+  <div class="about">
+    <div class="about-text">
+      <div class="no">About the farm</div>
+      <p>Kentish Town City Farm opened in 1972 — the first city farm in the UK. It began when InterAction, a community theatre group, rented a disused timber yard from Camden Council, wedged where two railway lines cross. Today it is a local charity, free to enter, for people in the city to meet animals, grow food and learn.</p>
+      <p>A free farm runs on giving. A donation station stands by the main building; a red post box asks for <em>post donations</em>.</p>
+      <p class="q">Which leaves a question I couldn’t answer on the walk: is this place meeting a need — or is it designed to make us want a certain kind of city life?</p>
+    </div>
+    <div class="about-imgs">
+      <img src="media/donation.jpg" alt="Donation station" style="transform:rotate(-3deg)">
+      <img src="media/post.jpg" alt="Post donations post box" style="transform:rotate(2deg)">
+      <img src="media/nofeed.jpg" alt="Please do not feed the animals" style="transform:rotate(-1deg)">
+    </div>
+  </div>
+  <div class="credits">1 Cressfield Close, London NW5 4BN · Footage, photographs and sound recorded on site, 6 October 2026 · Sound drives the image: louder means more broken.<br>Raven · BA Graphic Communication Design · Unit 6 — Present a Place</div>
+</footer>
+
+<script src="media/env.js"></script>
+<script>
+const STOPS={entrance:[8,59,'entrance'],pigs:[31,56],stables:[40,52,'stables'],sheep:[38,66,'sheep'],cow:[44,66,'cow'],goats:[59,52,'goats'],gardens:[63,45,'unexplored'],exit:[8,59,'gate']};STOPS.pigs[2]='pigs';
+const dot=document.getElementById('dot'),where=document.getElementById('where');
+function goStop(k){const s=STOPS[k];if(!s)return;dot.style.left=s[0]+'%';dot.style.top=s[1]+'%';where.textContent=s[2];}
+goStop('entrance');
+
+/* ---------- WebGL ---------- */
+const cv=document.getElementById('gl');
+let gl=null,prog,texA,texB,U={};
+const VS=`attribute vec2 p;varying vec2 uv;void main(){uv=p*.5+.5;gl_Position=vec4(p,0,1);}`;
+const FS=`precision mediump float;varying vec2 uv;
+uniform sampler2D A,B;uniform vec2 res,aA,aB,mouse;uniform float t,mix_,lvl,prog,modeA,modeB;
+float h(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
+float n(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(h(i),h(i+vec2(1,0)),f.x),mix(h(i+vec2(0,1)),h(i+1.),f.x),f.y);}
+vec2 cover(vec2 u,vec2 a){float sr=res.x/res.y,ta=a.x/a.y;vec2 s=sr>ta?vec2(1.,ta/sr):vec2(sr/ta,1.);return (u-.5)*s+.5;}
+vec3 grab(sampler2D T,vec2 u,vec2 a){u=cover(u,a);u.y=1.-u.y;return texture2D(T,clamp(u,0.,1.)).rgb;}
+vec3 scene(sampler2D T,vec2 a,float m,vec2 u){
+  vec3 c;
+  if(m<.5){ c=grab(T,u,a); }
+  else if(m<1.5){ /* smell: heat haze, sour tint, swelling with scroll */
+    float k=.012+.03*prog;
+    vec2 d=vec2(n(u*6.+t*.6)-.5,n(u*6.-t*.5+3.)-.5)*k*2.;
+    c=vec3(grab(T,u+d*1.3,a).r,grab(T,u+d,a).g,grab(T,u+d*.7,a).b);
+    c=mix(c,c*vec3(1.05,1.08,.62),.55+.3*prog);
+    c+=vec3(.08,.1,0.)*n(u*3.+t*.2)*prog;
+  }
+  else if(m<2.5){ /* flies + twitch in the lower half */
+    vec2 w=u; w.x+=step(u.y,.45)*sin(t*55.)*.0035*(.5+lvl);
+    c=grab(T,w,a)*.9;
+    for(int i=0;i<26;i++){float fi=float(i);
+      vec2 fp=vec2(h(vec2(fi,1.)),h(vec2(fi,2.)));
+      fp+=vec2(n(vec2(t*1.7,fi)),n(vec2(fi,t*1.9)))*.25-.12;
+      fp=fract(fp);
+      float r=length((u-fp)*vec2(res.x/res.y,1.));
+      c*=mix(1.,.05,smoothstep(.007,.003,r));}
+  }
+  else if(m<3.5){ /* bars that part around the pointer */
+    c=grab(T,u,a);
+    float dx=u.x-mouse.x; float push=.09*exp(-dx*dx*40.);
+    float bx=u.x*14.+sign(dx)*push*14.;
+    float bar=smoothstep(.46,.5,abs(fract(bx)-.5));
+    c=mix(c*.8,vec3(.62,.64,.66)*(.6+.4*n(vec2(bx*3.,u.y*80.))),bar*.92);
+  }
+  else if(m<4.5){ /* the call: a ripple from the centre when it bleats */
+    vec2 q=(u-.5)*vec2(res.x/res.y,1.); float r=length(q);
+    float w=sin(r*60.-t*14.)*exp(-r*3.)*.02*smoothstep(.15,.55,lvl);
+    c=grab(T,u+normalize(q+1e-4)*w,a)*vec3(1.03,1.,.95);
+  }
+  else if(m<5.5){ /* train: sound tears the image */
+    float L=.07+lvl*lvl*.6; float life=smoothstep(.2,.55,lvl);
+    float row=floor(u.y*(18.+60.*L));
+    float sh=(h(vec2(row,floor(t*14.)))-.5)*.25*L;
+    vec2 w=u+vec2(sh+sin(u.y*9.+t*3.)*.006*(.3+2.*lvl),0.);
+    float s=.015*L+.002;
+    c=vec3(grab(T,w+vec2(s,0),a).r,grab(T,w,a).g,grab(T,w-vec2(s,0),a).b);
+    float g=dot(c,vec3(.3,.59,.11)); vec3 stone=vec3(g)*vec3(1.,.97,.92)+(h(u*res+t)-.5)*.12;
+    c=mix(stone,c,life);
+    c*=1.-.35*L*step(.5,fract(u.y*res.y*.25));
+    c=mix(c,vec3(1.),.15*L*step(.97,h(vec2(row,t))));
+  }
+  else if(m<6.5){ /* unexplored: fog of war, only the pointer reveals */
+    vec3 o=grab(T,u,a);
+    float fog=n(u*4.+vec2(t*.05,t*.03))*.6+n(u*9.-t*.08)*.4;
+    vec3 f=mix(vec3(.08,.09,.1),vec3(.3,.32,.34),fog);
+    f=mix(f,vec3(dot(o,vec3(.3,.59,.11)))*.25,.35);
+    float d=length((u-mouse)*vec2(res.x/res.y,1.));
+    float r=smoothstep(.2,.08,d+ (n(u*14.+t)-.5)*.04);
+    c=mix(f,o,r);
+  }
+  else if(m<7.5){ c=grab(T,u,a)*vec3(1.04,1.,.92); }
+  else { vec3 o=grab(T,u,a); c=mix(o,vec3(.94,.91,.84),.25+.6*prog); }
+  return c;
+}
+void main(){
+  vec2 u=uv;
+  vec3 a=scene(A,aA,modeA,u);
+  float wipe=smoothstep(mix_-.15,mix_+.15,u.y+ (n(u*8.)-.5)*.2);
+  vec3 b=scene(B,aB,modeB,u);
+  vec3 c=mix(a,b,wipe);
+  c+= (h(u*res+fract(t))-.5)*.07;
+  float v=length(u-.5); c*=1.-.55*v*v;
+  gl_FragColor=vec4(c,1.);
+}`;
+function initGL(){
+  try{
+    gl=cv.getContext('webgl',{premultipliedAlpha:false});
+    if(!gl)throw 0;
+    const sh=(t,s)=>{const o=gl.createShader(t);gl.shaderSource(o,s);gl.compileShader(o);if(!gl.getShaderParameter(o,gl.COMPILE_STATUS))throw gl.getShaderInfoLog(o);return o;};
+    prog=gl.createProgram();gl.attachShader(prog,sh(gl.VERTEX_SHADER,VS));gl.attachShader(prog,sh(gl.FRAGMENT_SHADER,FS));gl.linkProgram(prog);gl.useProgram(prog);
+    const b=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,b);gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([-1,-1,1,-1,-1,1,1,1]),gl.STATIC_DRAW);
+    const l=gl.getAttribLocation(prog,'p');gl.enableVertexAttribArray(l);gl.vertexAttribPointer(l,2,gl.FLOAT,false,0,0);
+    ['A','B','res','aA','aB','mouse','t','mix_','lvl','prog','modeA','modeB'].forEach(k=>U[k]=gl.getUniformLocation(prog,k));
+    const mk=()=>{const t=gl.createTexture();gl.bindTexture(gl.TEXTURE_2D,t);
+      [gl.TEXTURE_WRAP_S,gl.TEXTURE_WRAP_T].forEach(p=>gl.texParameteri(gl.TEXTURE_2D,p,gl.CLAMP_TO_EDGE));
+      gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR);
+      gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,1,1,0,gl.RGBA,gl.UNSIGNED_BYTE,new Uint8Array([20,20,20,255]));return t;};
+    texA=mk();texB=mk();
+    gl.uniform1i(U.A,0);gl.uniform1i(U.B,1);
+  }catch(e){console.warn('no webgl',e);gl=null;document.body.classList.add('nogl');}
+}
+function resize(){const d=Math.min(devicePixelRatio,1.5);cv.width=innerWidth*d;cv.height=innerHeight*d;if(gl)gl.viewport(0,0,cv.width,cv.height);}
+initGL();resize();addEventListener('resize',resize);
+
+/* ---------- scenes & scroll ---------- */
+const scenes=[...document.querySelectorAll('.scene')];
+scenes[0].classList.add('cur');let cur=scenes[0],prev=scenes[0],mixv=1,soundOn=false,mouse=[.5,.5];
+addEventListener('pointermove',e=>{mouse=[e.clientX/innerWidth,1-e.clientY/innerHeight];});
+const el=id=>document.getElementById(id);
+function srcOf(s){return el(s.dataset.src);}
+
+function playOnly(s){
+  document.querySelectorAll('video.src').forEach(v=>{
+    if(v===srcOf(s)){v.muted=!soundOn;if(v.paused)v.play().catch(()=>{});}
+    else if(v!==srcOf(prev)){v.pause();}
+  });
+}
+function setScene(s){
+  if(s===cur)return;
+  prev.classList.remove('cur');s.classList.add('cur');prev=cur;cur=s;mixv=0;goStop(s.dataset.stop);
+  if(srcOf(prev)&&srcOf(prev).tagName==='VIDEO'&&srcOf(prev)!==srcOf(cur)){const pv=srcOf(prev);fadeOut(pv);}
+  const sv=srcOf(s); if(sv.tagName==='VIDEO'&&sv!==srcOf(prev)){try{sv.currentTime=0;}catch(e){}}
+  playOnly(s);
+  if(document.body.classList.contains('nogl')){const v=srcOf(s);const fb=el('fallback');if(v.tagName==='VIDEO'){fb.src=v.src;fb.play().catch(()=>{});}}
+}
+function fadeOut(v){let k=0;const iv=setInterval(()=>{k++;v.volume=Math.max(0,1-k/10);if(k>=10){clearInterval(iv);if(v!==srcOf(cur))v.pause();v.volume=1;}},60);}
+function pickScene(){
+  const mid=innerHeight*.5;let best=scenes[0];
+  for(const s of scenes){const r=s.getBoundingClientRect();if(r.top<=mid&&r.bottom>mid){best=s;break;}}
+  setScene(best);
+}
+addEventListener('scroll',pickScene,{passive:true});
+
+el('enter').onclick=()=>{
+  soundOn=true;document.body.classList.add('on');
+  const v=srcOf(cur);if(v.tagName==='VIDEO'){v.muted=false;v.play().catch(()=>{});}
+  scrollTo({top:innerHeight*1.1,behavior:'smooth'});
+};
+
+function level(s){
+  const k=s.dataset.env,v=srcOf(s);
+  if(!k||!window.ENV||!ENV[k]||v.tagName!=='VIDEO')return 0;
+  const a=ENV[k];return a[Math.min(a.length-1,Math.floor(v.currentTime*10))]||0;
+}
+function upload(tex,unit,src){
+  gl.activeTexture(gl.TEXTURE0+unit);gl.bindTexture(gl.TEXTURE_2D,tex);
+  const ready=src.tagName==='VIDEO'?src.readyState>=2:src.complete&&src.naturalWidth;
+  if(!ready)return null;
+  try{gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,src);}
+  catch(e){console.warn('texture blocked',e);gl=null;document.body.classList.add('nogl');setScene(scenes[0]);return null;}
+  return src.tagName==='VIDEO'?[src.videoWidth,src.videoHeight]:[src.naturalWidth,src.naturalHeight];
+}
+let aA=[9,16],aB=[9,16],lv=0;
+const last={A:[null,-1],B:[null,-1]};
+function fresh(src,k){ // only re-upload when the source or its frame changed
+  const t=src.tagName==='VIDEO'?src.currentTime:(src.complete?1:-1);
+  if(last[k][0]===src&&last[k][1]===t)return false;
+  if(src.tagName==='VIDEO'&&src.readyState<2)return false;
+  last[k]=[src,t];return true;
+}
+const meter=document.querySelector('#meter i');
+function frame(t){
+  mixv=Math.min(1,mixv+.02);
+  const r=cur.getBoundingClientRect();const p=Math.min(1,Math.max(0,-r.top/(r.height-innerHeight)));
+  lv+= (level(cur)-lv)*.35;
+  el('train').classList.toggle('loud',cur.id==='train'&&lv>.45);
+  meter.style.height=(lv*100)+'vh';
+  if(gl){
+    const sa=srcOf(cur),sb=srcOf(prev);
+    if(fresh(sa,'A')){const a=upload(texA,0,sa);if(a)aA=a;}
+    if(mixv<1&&fresh(sb,'B')){const b=upload(texB,1,sb);if(b)aB=b;}
+    if(gl){
+      gl.uniform2f(U.res,cv.width,cv.height);gl.uniform2f(U.aA,aA[0],aA[1]);gl.uniform2f(U.aB,aB[0],aB[1]);
+      gl.uniform2f(U.mouse,mouse[0],mouse[1]);gl.uniform1f(U.t,t/1000);gl.uniform1f(U.mix_,mixv*1.3-.15);
+      gl.uniform1f(U.lvl,lv);gl.uniform1f(U.prog,p);
+      gl.uniform1f(U.modeA,+cur.dataset.mode);gl.uniform1f(U.modeB,+prev.dataset.mode);
+      gl.drawArrays(gl.TRIANGLE_STRIP,0,4);
+    }
+  }else{
+    el('fallback').style.filter=cur.dataset.mode==='5'?`contrast(${1+lv}) saturate(${1-lv*.8})`:cur.dataset.mode==='5'?`grayscale(${1-lv})`:'';
+  }
+  requestAnimationFrame(frame);
+}
+playOnly(cur);
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
