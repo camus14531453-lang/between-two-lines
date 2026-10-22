@@ -518,12 +518,13 @@ camAnim(CAMO,TGTO,4400,'unfold',()=>{state='map';controls.enabled=true;setCaptio
 function overview(){if(!(state==='map'||state==='station'))return;state='moving';active=null;showText(null);document.getElementById('bLeave').style.display='none';camAnim(CAMO,TGTO,1500,'cam',()=>{state='map';controls.enabled=true;setCaption(nextKey()?'Next: '+nameOf(nextKey())+'.':caps.none);});}
 function next(){unlockAudio();if(state==='folded'||state==='end'){startOpen();return;}const k=nextKey();if(!k)return;if(k==='feather'&&visited.has('gate')){finale();return;}goTo(k);}
 function resetGame(){noteIdx=0;resetTrain();progress=0;visited.clear();seen.clear();goldOn=false;pieces.forEach(p=>{p.u.map.value=p.tx.w;});clearArrows();computeReached();drawMap();mapTex.needsUpdate=true;}
-function startOver(){if(state==='unfolding'||state==='folding'||state==='finale')return;if(state==='folded'||state==='end'){resetGame();state='folded';showText('cover');setCaption('A folded map lies on the table.');setBusy();return;}
+let runId=0;
+function startOver(){if(state==='unfolding'||state==='folding')return;runId++;if(state==='folded'||state==='end'){resetGame();state='folded';startOpen();return;}
 state='folding';setBusy();active=null;showText(null);document.getElementById('bLeave').style.display='none';setTimeout(()=>camAnim(CAM0,TGT0,3800,'fold',()=>{state='folded';resetGame();setBusy();showText('cover');setCaption('A folded map lies on the table.');}),500);}
-function finale(){if(nextKey()!=='feather'||!(state==='station'||state==='map'))return;state='finale';setBusy();document.getElementById('bLeave').style.display='none';active=null;showText(null);visit('feather');const v=stationView('feather');
-camAnim(v[0],v[1],1700,'cam',()=>{active='feather';actT=now();showText('feather');setCaption(caps.feather);
-setTimeout(()=>{active=null;showText(null);camAnim(CAMO,TGTO,2400,'cam',()=>{goldOn=true;goldT=now();playTune();pieces.forEach(p=>{p.u.map.value=p.tx.g;});arrows.forEach(a=>a.mat.color.set(0xe2b23c));computeReached();drawMap();mapTex.needsUpdate=true;setCaption('Everything is unlocked.');
-setTimeout(()=>{state='folding';camAnim(CAM0,TGT0,4200,'fold',()=>{state='end';setBusy();showText('end');setCaption('The atlas is closed. Start to walk it again.');});},7200);});},7000);});}
+function finale(){if(nextKey()!=='feather'||!(state==='station'||state==='map'))return;state='finale';const rid=++runId;setBusy();document.getElementById('bLeave').style.display='none';active=null;showText(null);visit('feather');const v=stationView('feather');
+camAnim(v[0],v[1],1700,'cam',()=>{if(rid!==runId)return;active='feather';actT=now();showText('feather');setCaption(caps.feather);
+setTimeout(()=>{if(rid!==runId)return;active=null;showText(null);camAnim(CAMO,TGTO,2400,'cam',()=>{if(rid!==runId)return;goldOn=true;goldT=now();playTune();pieces.forEach(p=>{p.u.map.value=p.tx.g;});arrows.forEach(a=>a.mat.color.set(0xe2b23c));computeReached();drawMap();mapTex.needsUpdate=true;setCaption('Everything is unlocked.');
+setTimeout(()=>{if(rid!==runId)return;state='folding';camAnim(CAM0,TGT0,4200,'fold',()=>{if(rid!==runId)return;state='end';setBusy();showText('end');setCaption('The atlas is closed. Start to walk it again.');});},7200);});},7000);});}
 document.getElementById('bStart').onclick=startOpen;document.getElementById('bNext').onclick=next;document.getElementById('bBack').onclick=overview;document.getElementById('bFold').onclick=startOver;document.getElementById('bLeave').onclick=finale;
 addEventListener('keydown',e=>{if(e.target instanceof Element&&e.target.closest('#language'))return;if(e.key==='ArrowRight'||e.key===' '){e.preventDefault();next();}if(e.key==='Escape')overview();});
 /* ---------- picking ---------- */
