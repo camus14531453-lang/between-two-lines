@@ -47,6 +47,7 @@ background-image:radial-gradient(ellipse 70% 60% at 50% 45%,rgba(120,96,60,.18),
 <canvas id="c3"></canvas>
 <div id="tuneCredit" style="position:fixed;top:22px;right:26px;font:italic 13px Georgia,serif;color:#e8d9b0;letter-spacing:.02em;text-shadow:0 1px 6px rgba(0,0,0,.7);opacity:0;transition:opacity 1.4s ease;pointer-events:none;z-index:5"></div>
 <div id="shade"></div>
+<div id="goHint" style="position:fixed;top:16px;left:50%;transform:translateX(-50%);z-index:6;padding:7px 16px;border-radius:20px;background:rgba(30,28,24,.82);border:1px solid #e2b23c;color:#f3dc98;font:13px -apple-system,'PingFang SC',sans-serif;letter-spacing:.02em;opacity:0;transition:opacity .6s;pointer-events:none;white-space:nowrap"></div>
 <div id="bar">
 <button id="bStart" class="busy">Loading…</button>
 <button id="bNext">Next stop →</button>
@@ -604,7 +605,7 @@ const sheepA=active==='sheep'&&openMap?A0:0,cowA=active==='cow'&&openMap?A0:0;la
 /* arrows + marker */
 Object.keys(hints).forEach(k=>{const h=hints[k],on=openMap&&!goldOn&&isOpenSpot(k)&&!seen.has(k)&&active!==k&&(state==='map'||state==='station'||state==='moving');h.material.map=lang==='zh'?HINT_ZH:HINT_EN;const b=spotW(k),ph=h.userData.ph;const ih=SPOTS[k].pieces[0].h;h.position.set(b.x,0.05+Math.sin(t*2.2+ph)*0.012,b.z-ih*0.55);const target=on?0.35+0.65*(0.5+0.5*Math.sin(t*2.6+ph)):0;h.material.opacity+=(target-h.material.opacity)*0.15;h.visible=h.material.opacity>0.02;});
 arrows.forEach(a=>{const k=clamp((t-a.t0)/1.3);a.geo.setDrawRange(0,Math.floor(a.n*ease2(k)/3)*3);a.cone.visible=k>=1&&openMap;a.tube.visible=openMap;a.mat.opacity=0.9;});
-const nk=nextKey();marker.visible=openMap&&!!nk&&(state==='map'||state==='station'||state==='moving')&&active!==nk;
+const nk=nextKey();{const gh=document.getElementById('goHint');const on=!!nk&&openMap&&(state==='map'||state==='station'||state==='moving');gh.style.opacity=on?1:0;if(on){const tx=lang==='zh'?'寻找下一个标有金圈的地点，点击以继续旅程 → '+nameOf(nk):'Find the next place with a gold ring and click it to continue → '+nameOf(nk);if(gh.textContent!==tx)gh.textContent=tx;}}marker.visible=openMap&&!!nk&&(state==='map'||state==='station'||state==='moving')&&active!==nk;
 if(marker.visible){const b=spotW(nk);marker.position.set(b.x,0,b.z+0.02);const bt=t-bounceT;const s=1+0.12*Math.sin(t*3)+(bt<0.6?0.35*Math.sin(bt*PI/0.6):0);ringM.scale.set(s,s,1);pin.position.y=0.5+Math.sin(t*3)*0.05;}
 
 /* camera shake near the passing train */
