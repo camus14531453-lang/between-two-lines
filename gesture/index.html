@@ -756,14 +756,14 @@ body.gx-hand #goHint{display:none!important}
 <p class="sub" data-en="Stand about an arm's length from the screen and raise one hand." data-zh="离屏幕约一臂远，举起一只手。"></p>
 <div class="g3">
 <div class="g"><i>01</i><b data-en="Point" data-zh="指"></b><span data-en="Hold up your index finger. The ring on screen follows it." data-zh="伸出食指，屏幕上的圆圈跟着走。"></span></div>
-<div class="g"><i>02</i><b data-en="Tap" data-zh="轻点"></b><span data-en="Bend your index finger down and up, like tapping a touchpad. Tap a gold ring to stand it up, tap again to lay it down." data-zh="食指往下点一下再抬起，像点触控板。点金圈里的东西它会立起来，再点一下放下。"></span></div>
+<div class="g"><i>02</i><b data-en="Point and hold" data-zh="指着停一下"></b><span data-en="Keep one finger on a gold ring or a button for a moment and it clicks: the piece stands up, and does it again to lay it down. A quick tap of the finger also clicks." data-zh="一根手指指着金圈或按钮停一下就会点击：纸片立起来，再来一次放下。手指快速点一下也可以。"></span></div>
 <div class="g"><i>03</i><b data-en="Open hand, move" data-zh="张开五指移动"></b><span data-en="Drags the whole map, like a multi-finger swipe." data-zh="拖动整张地图，像在触控板上多指滑动。"></span></div>
 <div class="g"><i>04</i><b data-en="Fingertips together, then spread" data-zh="指尖并拢再张开"></b><span data-en="Zooms in a little. Bring them back together to zoom out." data-zh="稍微放大；再并拢就缩小。"></span></div>
 <div class="g"><i>05</i><b data-en="Fist, then open hand" data-zh="握拳，再张开"></b><span data-en="Opens the book." data-zh="打开地图书。"></span></div>
 <div class="g"><i>06</i><b data-en="Open hand, then fist" data-zh="张开，再握拳"></b><span data-en="Closes the book." data-zh="合上地图书。"></span></div>
 </div>
 <div class="row"><div id="gxSay"></div>
-<button class="btn" id="gxGo" type="button" disabled data-en="Tap here to begin" data-zh="轻点这里开始"></button>
+<button class="btn" id="gxGo" type="button" disabled data-en="Point here and hold to begin" data-zh="指着这里停一下开始"></button>
 <button class="btn alt" id="gxRetry" type="button" style="display:none" data-en="Try again" data-zh="重试"></button>
 <button class="btn alt" id="gxUseMouse" type="button" data-en="Use the mouse instead" data-zh="改用鼠标"></button></div>
 <p class="priv" data-en="The camera image is processed only on this computer. Nothing is recorded, saved or sent." data-zh="摄像头画面只在这台电脑上处理，不录制、不保存、不上传。"></p>
@@ -790,15 +790,16 @@ const T={ // tuning
   rx0:.12,rx1:.88,ry0:.10,ry1:.80,   // camera area mapped to the whole screen
   minCut:1.4,beta:.004,dCut:1,deadPx:6, // One Euro smoothing of the ring; tiny tremors under deadPx are damped
   stableFrames:3,settle:300,lostMs:700, // frames a hand shape must hold; ms a new hand is ignored; ms before a hand counts as gone
-  tapDip:.78,tapBack:.9,tapMs:320,cooldown:450, // tap: index reach drops below 78% and comes back above 90% within 0.32 s, still pointing
+  tapDip:.82,tapBack:.9,tapBend:32,tapMs:450,cooldown:450, // tap: the index bends 32° more than its resting bend (3D, so a tap towards the camera counts) or its reach drops below 82%, and straightens within 0.45 s
   holdMin:350,switchMs:700,poseLock:900, // fist <-> open: each held 0.35 s (longer than any tap), changed directly within 0.7 s, then a 0.9 s pause
+  dwellMs:800,dwellR:40,              // pointing still on a gold ring or button for 0.8 s (within 40 px) = click
   panWait:250,                        // an open hand drags the map after it has been held this long
   bunchOn:.55,zoomStep:.08,zoomMax:1.25}; // fingertip-to-thumb spread / palm size: together < .55; one zoom step per .08
 let mode=null,lm=null,stream=null,running=false,lastVT=-1,raf=0,landmarker=null,modelP=null;
 let sx=innerWidth/2,sy=innerHeight/2,have=false,seenAt=0,lostAt=0,lastClick=0,hoverEl=null,hist=[],fps=0,fpsN=0,fpsT=0,detMs=0;
 let rawPose='',rawN=0,pose='none',fromPose='none',poseSince=0,fired=false,lastFist=-1e9,lastOpen=-1e9,lastPose=-1e9;
-let tapAt=0,tapX=0,tapY=0,reachBase=0,panning=false,panX=0,panY=0,zooming=false,zoomRef=null;
-const stats={clicks:0,drags:0,zooms:0,opens:0,closes:0,lost:0,frames:0,blockedFast:0,blockedSettle:0,tapsSlow:0};
+let dwellAt=0,dwellX=0,dwellY=0,dwellLock=null,tapAt=0,tapX=0,tapY=0,reachBase=0,panning=false,panX=0,panY=0,zooming=false,zoomRef=null;
+const stats={dwells:0,clicks:0,drags:0,zooms:0,opens:0,closes:0,lost:0,frames:0,blockedFast:0,blockedSettle:0,tapsSlow:0};
 function log(...a){if(TEST||Q.has('gxlog'))console.log('[gx]',...a);}
 // Short confirmations ("Next stop") take over the guide for a moment, then it goes back to the next step.
 let tipUntil=0;
@@ -808,12 +809,12 @@ function untip(){tipP=null;tipUntil=0;showGuide();}
 const vis=id=>{const b=$(id);return b&&!b.disabled&&getComputedStyle(b).display!=='none';};
 function nextStep(){const st=window.atlas?atlas.state().state:'',gh=$('goHint'),to=gh&&gh.textContent.includes('→')?' → '+gh.textContent.split('→').pop().trim():'';
   if(!have)return[['Raise one hand in front of the camera','把一只手举到摄像头前'],['The ring on screen will follow your index finger','屏幕上的圆圈会跟着你的食指'],null];
-  if(st==='folded'||st==='end')return[['Make a fist, then open your hand','先握拳，再张开五指'],['This opens the book. Or point at Start and tap','这样就能打开地图书。也可以指着「开始」轻点一下'],'bStart'];
+  if(st==='folded'||st==='end')return[['Make a fist, then open your hand','先握拳，再张开五指'],['This opens the book. Or point at Start and hold still','这样就能打开地图书。也可以指着「开始」停一下'],'bStart'];
   if(st==='unfolding'||st==='moving'||st==='folding')return[['Wait a moment…','稍等，地图在动…'],['',''],null];
   if(st==='finale')return[['Watch the map turn gold','看地图变成金色'],['',''],null];
-  if(vis('bLeave'))return[['Point at the gold button and tap to pick up the feather','指着金色按钮轻点，拾起羽毛'],['',''],'bLeave'];
-  if(st==='station')return[['Point at the next gold ring and tap'+to,'指着下一个金圈，轻点一下'+to],['Tap the standing piece to lay it down · Open hand then fist closes the book','点立着的东西会放下 · 张开再握拳合上书'],null];
-  if(st==='map')return[['Point at the gold ring and tap'+to,'指着金圈，轻点一下'+to],['Open hand and move to drag · Fingertips together then spread to zoom','张开五指移动＝拖动 · 指尖并拢再张开＝放大'],null];
+  if(vis('bLeave'))return[['Point at the gold button and hold still to pick up the feather','指着金色按钮停一下，拾起羽毛'],['',''],'bLeave'];
+  if(st==='station')return[['Point one finger at the next gold ring and hold still'+to,'伸出一根手指，指着下一个金圈停一下'+to],['Point at the standing piece again to lay it down · Open hand then fist closes the book','再指着立起来的东西停一下就会放下 · 张开再握拳合上书'],null];
+  if(st==='map')return[['Point one finger at the gold ring and hold still'+to,'伸出一根手指，指着金圈停一下'+to],['Open hand and move to drag · Fingertips together then spread to zoom','张开五指移动＝拖动 · 指尖并拢再张开＝放大'],null];
   return[['',''],['',''],null];}
 let targetEl=null;
 function showGuide(){const on=mode==='hand'&&running&&!intro.classList.contains('on');guide.classList.toggle('on',on);document.body.classList.toggle('gx-hand',on);
@@ -846,7 +847,7 @@ async function useHand(){mode='hand';choice.classList.add('gone');intro.classLis
   camBox.classList.add('on');setSay(['Loading hand tracking…','正在加载手部识别…']);
   try{await loadModel();}catch(e){console.error(e);return fail(['Hand tracking could not load.','手部识别加载失败。']);}
   if(mode!=='hand')return;
-  setSay(['Raise one hand and point. When the ring follows your finger, tap the light button.','举起一只手伸出食指，圆圈跟上之后，对着浅色按钮轻点一下。']);
+  setSay(['Raise one hand and point. When the ring follows your finger, hold it on the light button.','举起一只手伸出食指，圆圈跟上之后，指着浅色按钮停一下。']);
   go.disabled=false;running=true;loop();}
 function fail(p){running=false;stopCam(true);setSay([p[0]+' You can also use the mouse.',p[1]+'也可以改用鼠标。']);const msg=p[0];retry.style.display='';go.disabled=true;intro.classList.add('on');log('fail',msg);}
 function stopCam(keepBox){running=false;cancelAnimationFrame(raf);if(stream){stream.getTracks().forEach(t=>t.stop());stream=null;}video.srcObject=null;if(!keepBox)camBox.classList.remove('on');release(true);lose();}
@@ -883,7 +884,7 @@ function posture(h,palm){const w=h[0];let ext=0,cur=0,straight=0;
   let p='other';
   if(cur===4)p='fist';else if(straight>=3&&spread<T.bunchOn)p='bunch';else if(ext===4)p='open';else if(dw(w,h[8])>dw(w,h[6])*1.15&&others>=2)p='point';
   return [p,spread];}
-function feed(h,t){t=t||performance.now();stats.frames++;fpsN++;if(t-fpsT>1000){fps=fpsN*1000/(t-fpsT);fpsN=0;fpsT=t;camP=[(have?'Hand found':'No hand')+'  '+fps.toFixed(0)+' fps',(have?'已识别到手':'未识别到手')+'  '+fps.toFixed(0)+' fps'];camT.textContent=L(camP);}
+function feed(h,t){t=t||performance.now();stats.frames++;fpsN++;if(t-fpsT>1000){fps=fpsN*1000/(t-fpsT);fpsN=0;fpsT=t;const pn={point:['pointing','指'],open:['open hand','张开'],fist:['fist','握拳'],bunch:['fingertips together','指尖并拢'],other:['…','…']}[pose]||['',''];camP=[(have?'Hand: '+pn[0]:'No hand')+'  '+fps.toFixed(0)+' fps',(have?'手势：'+pn[1]:'未识别到手')+'  '+fps.toFixed(0)+' fps'];camT.textContent=L(camP);}
   if(!h){gx.pose=null;if(have&&!lostAt)lostAt=t;if(have&&t-lostAt>T.lostMs)lose(true);return;}
   lostAt=0;if(!have){have=true;seenAt=t;fX.t=fY.t=null;rawPose='';rawN=0;pose='none';tapAt=0;reachBase=0;cur.classList.add('on');untip();log('hand found');}
   const w0=h[0],m9=h[9],palm=dw(w0,m9)||1e-3;
@@ -900,15 +901,22 @@ function feed(h,t){t=t||performance.now();stats.frames++;fpsN++;if(t-fpsT>1000){
   hist.push([t,sx,sy]);while(hist.length&&t-hist[0][0]>300)hist.shift();
   tapCheck(h,t,p);whole(t,spread);move(t);}
 /* ---------- tap: the index finger bends and straightens quickly, like tapping a touchpad ---------- */
-function tapCheck(h,t,p){const reach=dw(h[0],h[8])/(dw(h[0],h[5])||1e-3);
-  if(!tapAt){if(pose!=='point'){reachBase=0;return;}
+// bend of the index finger in 3D: 0° when straight
+function bendOf(h){const u=[h[6].x-h[5].x,h[6].y-h[5].y,h[6].z-h[5].z],v=[h[8].x-h[6].x,h[8].y-h[6].y,h[8].z-h[6].z];
+  const d=u[0]*v[0]+u[1]*v[1]+u[2]*v[2],n=Math.hypot(...u)*Math.hypot(...v)||1e-6;return Math.acos(clamp(d/n,-1,1))*180/Math.PI;}
+let bendBase=0;
+function tapCheck(h,t,p){const reach=dw(h[0],h[8])/(dw(h[0],h[5])||1e-3),bend=bendOf(h);
+  // armed whenever the index is the pointing finger, even if the other fingers are a little loose
+  const armed=pose==='point'||(pose==='other'&&dw(h[0],h[8])>dw(h[0],h[6])*1.1&&dw(h[0],h[12])<dw(h[0],h[10])*1.1);
+  if(!tapAt){if(!armed){reachBase=0;bendBase=0;return;}
     reachBase=reachBase?Math.max(reach,lerp(reachBase,reach,.1)):reach;
-    if(reach<reachBase*T.tapDip){tapAt=t;const old=hist.find(q=>t-q[0]<=150)||[t,sx,sy];tapX=old[1];tapY=old[2];sx=tapX;sy=tapY;cur.classList.add('down');}
-    cur.querySelector('.f').style.transform='scale('+clamp((1-reach/reachBase)*3,.12,1)+')';return;}
+    bendBase=bendBase?Math.min(bend,lerp(bendBase,bend,.1)):bend;
+    if(reach<reachBase*T.tapDip||bend>bendBase+T.tapBend){tapAt=t;const old=hist.find(q=>t-q[0]<=150)||[t,sx,sy];tapX=old[1];tapY=old[2];sx=tapX;sy=tapY;cur.classList.add('down');}
+    cur.querySelector('.f').style.transform='scale('+clamp(Math.max((1-reach/reachBase)*3,(bend-bendBase)/T.tapBend),.12,1)+')';return;}
   cur.querySelector('.f').style.transform='scale(1)';
   // a fist also bends the index, so a tap must be quick and end in the pointing shape again
-  if(reach>reachBase*T.tapBack&&p==='point'){const ok=t-tapAt<=T.tapMs;tapAt=0;cur.classList.remove('down');if(ok)onTap(t);else stats.tapsSlow++;}
-  else if(t-tapAt>T.tapMs){tapAt=0;cur.classList.remove('down');reachBase=0;stats.tapsSlow++;}}
+  if((reach>reachBase*T.tapBack&&bend<bendBase+T.tapBend*.5)&&p!=='fist'&&p!=='open'){const ok=t-tapAt<=T.tapMs;tapAt=0;cur.classList.remove('down');if(ok)onTap(t);else stats.tapsSlow++;}
+  else if(t-tapAt>T.tapMs){tapAt=0;cur.classList.remove('down');reachBase=0;bendBase=0;stats.tapsSlow++;}}
 function onTap(t){
   if(t-seenAt<T.settle){stats.blockedSettle++;return;}
   if(t-lastClick<T.cooldown){stats.blockedFast++;return;}
@@ -916,7 +924,7 @@ function onTap(t){
   if(b){if(b.disabled)return;b.click();}
   else if(el.tagName==='CANVAS'){fire('pointerdown',el,tapX,tapY,1);fire('pointerup',el,tapX,tapY,0);}
   else return;
-  lastClick=t;stats.clicks++;flash();log('tap',b?b.id:el.tagName,Math.round(tapX),Math.round(tapY));}
+  lastClick=t;stats.clicks++;dwellLock=[tapX,tapY];dwellAt=0;flash();log('tap',b?b.id:el.tagName,Math.round(tapX),Math.round(tapY));}
 /* ---------- whole hand: open / close the book, drag, zoom ---------- */
 function press(id){const b=$(id);if(b&&!b.disabled&&getComputedStyle(b).display!=='none'){b.click();return true;}return false;}
 function flash(){cur.classList.remove('click');void cur.offsetWidth;cur.classList.add('click');}
@@ -951,7 +959,19 @@ function move(t){cur.style.transform='translate('+sx+'px,'+sy+'px)';
   if(panning){fire('pointermove',cv3(),sx,sy,1);return;}
   const el=at(sx,sy);fire('pointermove',el||document.body,sx,sy,0);
   const b=el&&el.closest('button');if(b!==hoverEl){if(hoverEl)hoverEl.classList.remove('gx-hover');hoverEl=b;if(b)b.classList.add('gx-hover');}
-  const cv=el&&el.tagName==='CANVAS'?el:null;cur.classList.toggle('live',!!b||!!(cv&&cv.style.cursor==='pointer'));cur.classList.toggle('lock',!!(cv&&cv.style.cursor==='not-allowed'));}
+  const cv=el&&el.tagName==='CANVAS'?el:null,hot=!!b&&!b.disabled||!!(cv&&cv.style.cursor==='pointer');cur.classList.toggle('live',hot);cur.classList.toggle('lock',!!(cv&&cv.style.cursor==='not-allowed'));
+  dwell(t,hot,el,b);}
+/* ---------- dwell: one finger pointing, the ring held still on a gold ring or a button = click ---------- */
+function dwell(t,hot,el,b){
+  if(dwellLock&&Math.hypot(sx-dwellLock[0],sy-dwellLock[1])>T.dwellR*1.6)dwellLock=null; // move away before the same spot can fire again
+  if(pose!=='point'||tapAt||!hot||dwellLock){if(dwellAt){dwellAt=0;cur.querySelector('.f').style.transform='scale(.12)';}return;}
+  if(!dwellAt||Math.hypot(sx-dwellX,sy-dwellY)>T.dwellR){dwellAt=t;dwellX=sx;dwellY=sy;return;}
+  const k=(t-dwellAt)/T.dwellMs;cur.querySelector('.f').style.transform='scale('+clamp(k,.12,1)+')';
+  if(k<1)return;
+  dwellAt=0;
+  if(t-seenAt<T.settle||t-lastClick<T.cooldown)return;
+  if(b)b.click();else if(el&&el.tagName==='CANVAS'){fire('pointerdown',el,sx,sy,1);fire('pointerup',el,sx,sy,0);}else return;
+  lastClick=t;stats.clicks++;stats.dwells++;dwellLock=[sx,sy];flash();log('dwell',b?b.id:el.tagName,Math.round(sx),Math.round(sy));}
 function cancelPress(el){window.dispatchEvent(new PointerEvent('pointercancel',{pointerId:1,pointerType:'mouse'}));fire('pointerup',el||document,sx,sy,0);}
 function release(){endPan();zooming=false;tapAt=0;cur.classList.remove('down');}
 function lose(show){if(!have&&!show)return;if(have)stats.lost++;have=false;release();pose='none';rawPose='';rawN=0;lostAt=0;cur.classList.remove('on','live','lock');
